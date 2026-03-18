@@ -81,9 +81,11 @@ export default function Home() {
                     </Button>
                   </Link>
                 )}
-                <Button variant="outline" size="sm">
-                  {user?.name || "Perfil"}
-                </Button>
+                <Link href="/profile">
+  <Button variant="outline" size="sm">
+    {user?.name || "Perfil"}
+  </Button>
+</Link>
               </>
             ) : (
               <a href={getLoginUrl()}>
