@@ -180,7 +180,7 @@ export const appRouter = router({
         }
 
         const images = await db.getStoreGalleryImages(store.id);
-        const products = await db.getProductsByStore(store.id);
+        const products = await db.getProductsByStoreWithImages(store.id);
 
         return { ...store, gallery: images, products };
       }),
@@ -307,15 +307,8 @@ export const appRouter = router({
         });
       }
 
-      const products = await db.getProductsByStore(store.id);
-      const productsWithImages = await Promise.all(
-        products.map(async (product) => ({
-          ...product,
-          images: await db.getProductImages(product.id),
-        }))
-      );
-
-      return productsWithImages;
+      const includeInactive = ctx.user.role === "admin";
+      return await db.getProductsByStoreWithImages(store.id, includeInactive);
     }),
 
     create: vendorProcedure
@@ -339,7 +332,7 @@ export const appRouter = router({
           });
         }
 
-        const products = await db.getProductsByStore(store.id);
+        const products = await db.getProductsByStoreForAdmin(store.id);
         if (products.length >= 15) {
           throw new TRPCError({
             code: "BAD_REQUEST",
