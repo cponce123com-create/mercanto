@@ -332,4 +332,112 @@ export async function createCategory(data: {
     is_active: true,
   });
 }
-// ... rest of the file would need similar updates for ILIKE and onConflictDoUpdate
+
+// ============================================================================
+// TACORA OPERATIONS
+// ============================================================================
+
+export async function getTacoraPostById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(tacora_posts).where(eq(tacora_posts.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// ============================================================================
+// BANNER OPERATIONS
+// ============================================================================
+
+export async function getActiveBanners() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(banners)
+    .where(eq(banners.is_active, true))
+    .orderBy(asc(banners.sort_order));
+}
+
+// ============================================================================
+// IMAGE OPERATIONS
+// ============================================================================
+
+export async function addProductImage(product_id: number, url: string, public_id: string, sort_order = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(product_images).values({
+    product_id,
+    url,
+    public_id,
+    sort_order,
+  });
+}
+
+export async function getProductImages(product_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(product_images).where(eq(product_images.product_id, product_id));
+}
+
+export async function deleteProductImage(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(product_images).where(eq(product_images.id, id));
+}
+
+export async function addStoreGalleryImage(store_id: number, url: string, public_id: string, sort_order = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(store_gallery_images).values({
+    store_id,
+    url,
+    public_id,
+    sort_order,
+  });
+}
+
+export async function getStoreGalleryImages(store_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(store_gallery_images).where(eq(store_gallery_images.store_id, store_id));
+}
+
+export async function deleteStoreGalleryImage(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(store_gallery_images).where(eq(store_gallery_images.id, id));
+}
+
+export async function addTacoraImage(tacora_post_id: number, url: string, public_id: string, sort_order = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(tacora_images).values({
+    tacora_post_id,
+    url,
+    public_id,
+    sort_order,
+  });
+}
+
+export async function getTacoraImages(tacora_post_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(tacora_images).where(eq(tacora_images.tacora_post_id, tacora_post_id));
+}
+
+export async function deleteTacoraImage(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(tacora_images).where(eq(tacora_images.id, id));
+}
