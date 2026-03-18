@@ -198,10 +198,9 @@ export async function createStore(data: {
     slug: data.slug,
     description: data.description,
     main_category_id: data.main_category_id,
-    status: "pending",
+    status: "active",
   });
 }
-
 export async function getStoreByUserId(user_id: number) {
   const db = await getDb();
   if (!db) return undefined;
