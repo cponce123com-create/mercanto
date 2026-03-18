@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { StoreCard } from "@/components/StoreCard";
 import { Loader2, Search, MapPin } from "lucide-react";
+import { demoStores } from "@/lib/demo-content";
 
 export default function Stores() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,10 +16,17 @@ export default function Stores() {
     offset: 0,
   });
 
+  const visualStores = useMemo(() => {
+    if (stores.length > 0) return stores;
+    return demoStores;
+  }, [stores]);
+
+  const isDemoMode = !isLoading && stores.length === 0;
+
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredStores = useMemo(() => {
-    return stores.filter((store) => {
+    return visualStores.filter((store) => {
       const matchesSearch =
         normalizedSearch.length === 0 ||
         store.name.toLowerCase().includes(normalizedSearch) ||
@@ -29,7 +37,7 @@ export default function Stores() {
 
       return matchesSearch && matchesFeatured;
     });
-  }, [stores, normalizedSearch, filterFeatured]);
+  }, [visualStores, normalizedSearch, filterFeatured]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -43,6 +51,13 @@ export default function Stores() {
       </div>
 
       <div className="container py-8">
+        {isDemoMode && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+            Aún no hay tiendas activas en tu base de datos. Por eso te muestro tarjetas demo con imágenes
+            referenciales para que el diseño no se vea vacío.
+          </div>
+        )}
+
         <Card className="p-6 mb-8">
           <div className="space-y-4">
             <div className="relative">
@@ -82,6 +97,7 @@ export default function Stores() {
             <div className="mb-4">
               <p className="text-slate-600">
                 Se encontraron <span className="font-bold">{filteredStores.length}</span> tiendas
+                {isDemoMode ? " demo" : ""}
               </p>
             </div>
 
@@ -94,10 +110,12 @@ export default function Stores() {
                   slug={store.slug}
                   description={store.description}
                   logo_url={store.logo_url}
+                  banner_url={store.banner_url}
                   location={store.location}
                   whatsapp={store.whatsapp}
                   total_visits={store.total_visits}
                   is_featured={store.is_featured}
+                  demoMode={isDemoMode}
                 />
               ))}
             </div>
