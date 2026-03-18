@@ -1,6 +1,6 @@
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Star, MapPin, MessageCircle } from "lucide-react";
+import { Star, MapPin, MessageCircle, Store } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface StoreCardProps {
@@ -27,28 +27,35 @@ export function StoreCard({
 }: StoreCardProps) {
   const [, setLocation] = useLocation();
 
+  const handleOpenStore = () => {
+    setLocation(`/store/${slug}`);
+  };
+
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (whatsapp) {
-      const message = encodeURIComponent(`Hola, me interesa conocer más sobre tu tienda ${name}`);
-      window.open(`https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${message}`, "_blank");
-    }
+    e.stopPropagation();
+
+    if (!whatsapp) return;
+
+    const cleanPhone = whatsapp.replace(/\D/g, "");
+    const message = encodeURIComponent(`Hola, me interesa conocer más sobre tu tienda ${name}`);
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, "_blank");
   };
 
   return (
-    <div onClick={() => setLocation(`/store/${slug}`)} className="cursor-pointer">
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col">
-        {/* Header with logo */}
-        <div className="relative h-32 bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center overflow-hidden">
+    <div onClick={handleOpenStore} className="cursor-pointer h-full">
+      <Card className="overflow-hidden hover:shadow-lg transition-all duration-200 h-full flex flex-col border-slate-200">
+        <div className="relative h-36 bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center overflow-hidden">
           {logo_url ? (
             <img
               src={logo_url}
               alt={name}
               className="w-20 h-20 object-cover rounded-full border-4 border-white shadow-md"
+              loading="lazy"
             />
           ) : (
-            <div className="w-20 h-20 bg-slate-300 rounded-full border-4 border-white flex items-center justify-center text-slate-600 font-bold text-2xl">
-              {name.charAt(0)}
+            <div className="w-20 h-20 bg-white rounded-full border-4 border-white shadow-md flex items-center justify-center">
+              <Store className="w-8 h-8 text-slate-500" />
             </div>
           )}
 
@@ -59,12 +66,10 @@ export function StoreCard({
           )}
         </div>
 
-        {/* Content */}
-        <div className="p-4 flex-1 flex flex-col">
+        <CardContent className="p-4 flex-1 flex flex-col">
           <h3 className="font-bold text-lg mb-1 line-clamp-1">{name}</h3>
 
-          {/* Rating and visits */}
-          <div className="flex items-center gap-2 mb-2 text-sm text-slate-600">
+          <div className="flex items-center gap-2 mb-3 text-sm text-slate-600 flex-wrap">
             <div className="flex items-center gap-1">
               <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
               <span>4.8</span>
@@ -73,29 +78,36 @@ export function StoreCard({
             <span>{total_visits} visitas</span>
           </div>
 
-          {/* Description */}
-          {description && (
-            <p className="text-sm text-slate-600 mb-3 line-clamp-2 flex-1">
+          {description ? (
+            <p className="text-sm text-slate-600 mb-3 line-clamp-2 min-h-[2.5rem]">
               {description}
             </p>
+          ) : (
+            <div className="mb-3 min-h-[2.5rem]" />
           )}
 
-          {/* Location */}
-          {location && (
-            <div className="flex items-start gap-2 mb-3 text-sm">
+          {location ? (
+            <div className="flex items-start gap-2 mb-4 text-sm min-h-[2.5rem]">
               <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-              <span className="text-slate-700 line-clamp-1">{location}</span>
+              <span className="text-slate-700 line-clamp-2">{location}</span>
             </div>
+          ) : (
+            <div className="mb-4 min-h-[2.5rem]" />
           )}
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-3 border-t">
-            <Button size="sm" variant="outline" className="flex-1" onClick={(e) => {
-              e.stopPropagation();
-              setLocation(`/store/${slug}`);
-            }}>
-              Ver Tienda
+          <div className="flex gap-2 pt-3 border-t mt-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenStore();
+              }}
+            >
+              Ver tienda
             </Button>
+
             {whatsapp && (
               <Button
                 size="sm"
@@ -107,7 +119,7 @@ export function StoreCard({
               </Button>
             )}
           </div>
-        </div>
+        </CardContent>
       </Card>
     </div>
   );
