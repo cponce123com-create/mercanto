@@ -1,13 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Search, Store, ShoppingBag, TrendingUp, Heart } from "lucide-react";
 import { getLoginUrl } from "@/const";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { useLocation } from "wouter";
 
 export default function Home() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
@@ -22,9 +21,9 @@ export default function Home() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      setLocation(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
+    const value = searchQuery.trim();
+    if (!value) return;
+    setLocation(`/search?q=${encodeURIComponent(value)}`);
   };
 
   if (authLoading) {
@@ -41,46 +40,37 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
-            <a className="text-2xl font-bold text-blue-600 hover:text-blue-700">Mercanto</a>
+            <span className="text-2xl font-bold text-blue-600 cursor-pointer hover:text-blue-700">
+              Mercanto
+            </span>
           </Link>
 
           <nav className="hidden md:flex gap-6 items-center">
-            <Link href="/categorias">
-              <a className="text-sm font-medium text-slate-600 hover:text-slate-900">Categorías</a>
+            <Link href="/categories">
+              <span className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-900">
+                Categorías
+              </span>
             </Link>
-            <Link href="/comparador">
-              <a className="text-sm font-medium text-slate-600 hover:text-slate-900">Comparador</a>
-            </Link>
-            <Link href="/tacora">
-              <a className="text-sm font-medium text-slate-600 hover:text-slate-900">Tacora</a>
-            </Link>
-            <Link href="/tiendas">
-              <a className="text-sm font-medium text-slate-600 hover:text-slate-900">Tiendas</a>
+            <Link href="/stores">
+              <span className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-900">
+                Tiendas
+              </span>
             </Link>
           </nav>
 
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
               <>
-                {user?.role === "vendor" && (
-                  <Link href="/panel-vendedor">
+                {(user?.role === "vendor" || user?.role === "admin") && (
+                  <Link href="/vendor">
                     <Button variant="outline" size="sm">
                       Mi Panel
                     </Button>
                   </Link>
                 )}
-                {user?.role === "admin" && (
-                  <Link href="/admin">
-                    <Button variant="outline" size="sm">
-                      Admin
-                    </Button>
-                  </Link>
-                )}
-                <Link href="/perfil">
-                  <Button variant="outline" size="sm">
-                    {user?.name || "Perfil"}
-                  </Button>
-                </Link>
+                <Button variant="outline" size="sm">
+                  {user?.name || "Perfil"}
+                </Button>
               </>
             ) : (
               <a href={getLoginUrl()}>
@@ -95,11 +85,9 @@ export default function Home() {
       <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16 md:py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Tu Marketplace Local
-            </h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Tu Marketplace Local</h1>
             <p className="text-lg md:text-xl text-blue-100 mb-8">
-              Compra y vende productos locales, compara precios y descubre segunda mano
+              Compra y vende productos locales en un solo lugar
             </p>
 
             <form onSubmit={handleSearch} className="flex gap-2 mb-6">
@@ -126,7 +114,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Categories Section */}
+      {/* Categories */}
       <section className="py-12 md:py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl md:text-3xl font-bold mb-8">Categorías</h2>
@@ -138,15 +126,15 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {categories?.map((category) => (
-                <Link key={category.id} href={`/categoria/${category.slug}`}>
-                  <a className="block">
-                    <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                <Link key={category.id} href={`/categories`}>
+                  <div className="block cursor-pointer">
+                    <Card className="h-full hover:shadow-lg transition-shadow">
                       <CardContent className="p-4 text-center">
                         {category.icon && <div className="text-3xl mb-2">{category.icon}</div>}
                         <h3 className="font-semibold text-sm text-slate-900">{category.name}</h3>
                       </CardContent>
                     </Card>
-                  </a>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -154,7 +142,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Stores Section */}
+      {/* Stores */}
       <section className="py-12 md:py-16 bg-slate-50">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl md:text-3xl font-bold mb-8">Tiendas Destacadas</h2>
@@ -166,8 +154,8 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {stores?.map((store) => (
-                <Link key={store.id} href={`/tienda/${store.slug}`}>
-                  <a className="block">
+                <Link key={store.id} href={`/store/${store.slug}`}>
+                  <div className="block cursor-pointer">
                     <Card className="h-full hover:shadow-lg transition-shadow overflow-hidden">
                       {store.banner_url && (
                         <img
@@ -187,19 +175,15 @@ export default function Home() {
                           )}
                           <div>
                             <h3 className="font-semibold text-slate-900">{store.name}</h3>
-                            <p className="text-xs text-slate-500">
-                              {store.total_visits} visitas
-                            </p>
+                            <p className="text-xs text-slate-500">{store.total_visits} visitas</p>
                           </div>
                         </div>
                         {store.description && (
-                          <p className="text-sm text-slate-600 line-clamp-2">
-                            {store.description}
-                          </p>
+                          <p className="text-sm text-slate-600 line-clamp-2">{store.description}</p>
                         )}
                       </CardContent>
                     </Card>
-                  </a>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -207,12 +191,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features */}
       <section className="py-12 md:py-16">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">
-            ¿Por qué Mercanto?
-          </h2>
+          <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">¿Por qué Mercanto?</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
@@ -228,9 +210,9 @@ export default function Home() {
             <Card>
               <CardContent className="p-6 text-center">
                 <TrendingUp className="w-10 h-10 mx-auto mb-4 text-green-600" />
-                <h3 className="font-semibold mb-2">Comparador de Precios</h3>
+                <h3 className="font-semibold mb-2">Compara Opciones</h3>
                 <p className="text-sm text-slate-600">
-                  Compara precios entre vendedores y encuentra las mejores ofertas
+                  Encuentra productos de distintas tiendas de forma más simple
                 </p>
               </CardContent>
             </Card>
@@ -238,9 +220,9 @@ export default function Home() {
             <Card>
               <CardContent className="p-6 text-center">
                 <ShoppingBag className="w-10 h-10 mx-auto mb-4 text-purple-600" />
-                <h3 className="font-semibold mb-2">Segunda Mano</h3>
+                <h3 className="font-semibold mb-2">Compra Fácil</h3>
                 <p className="text-sm text-slate-600">
-                  Compra y vende artículos usados en Tacora, nuestra sección de segunda mano
+                  Descubre productos, visita tiendas y encuentra lo que necesitas rápido
                 </p>
               </CardContent>
             </Card>
@@ -250,7 +232,7 @@ export default function Home() {
                 <Heart className="w-10 h-10 mx-auto mb-4 text-red-600" />
                 <h3 className="font-semibold mb-2">Favoritos</h3>
                 <p className="text-sm text-slate-600">
-                  Guarda tus productos y publicaciones favoritas para acceder después
+                  Guarda tus productos y tiendas preferidas para revisarlas después
                 </p>
               </CardContent>
             </Card>
@@ -258,7 +240,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* CTA */}
       {!isAuthenticated && (
         <section className="bg-blue-600 text-white py-12 md:py-16">
           <div className="container mx-auto px-4 text-center">
@@ -278,67 +260,44 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-300 py-8 md:py-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
               <h3 className="text-white font-bold mb-4">Mercanto</h3>
               <p className="text-sm">Tu marketplace local para comprar y vender</p>
             </div>
+
             <div>
               <h4 className="text-white font-semibold mb-4">Navegación</h4>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <Link href="/categorias">
-                    <a className="hover:text-white">Categorías</a>
+                  <Link href="/categories">
+                    <span className="hover:text-white cursor-pointer">Categorías</span>
                   </Link>
                 </li>
                 <li>
-                  <Link href="/tiendas">
-                    <a className="hover:text-white">Tiendas</a>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/tacora">
-                    <a className="hover:text-white">Tacora</a>
+                  <Link href="/stores">
+                    <span className="hover:text-white cursor-pointer">Tiendas</span>
                   </Link>
                 </li>
               </ul>
             </div>
+
             <div>
               <h4 className="text-white font-semibold mb-4">Ayuda</h4>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="#" className="hover:text-white">
-                    Preguntas Frecuentes
-                  </a>
+                  <span className="hover:text-white cursor-pointer">Contacto</span>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
-                    Contacto
-                  </a>
+                  <span className="hover:text-white cursor-pointer">Términos</span>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white">
-                    Términos de Servicio
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <a href="#" className="hover:text-white">
-                    Privacidad
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white">
-                    Cookies
-                  </a>
+                  <span className="hover:text-white cursor-pointer">Privacidad</span>
                 </li>
               </ul>
             </div>
           </div>
+
           <div className="border-t border-slate-700 pt-8 text-center text-sm">
             <p>&copy; 2026 Mercanto. Todos los derechos reservados.</p>
           </div>
