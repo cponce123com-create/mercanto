@@ -225,6 +225,14 @@ export async function getStoreById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function countStores() {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db.select({ count: sql<number>`count(*)::int` }).from(stores);
+  return result[0]?.count ?? 0;
+}
+
 export async function updateStore(id: number, data: Partial<typeof stores.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
