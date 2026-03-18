@@ -67,7 +67,7 @@ export default function RegisterPage() {
       }
 
       toast.success("Cuenta creada correctamente");
-      setLocation("/vendor");
+      setLocation("/profile");
       window.location.reload();
     } catch (error) {
       const message =
