@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,24 +10,29 @@ export default function Stores() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFeatured, setFilterFeatured] = useState(false);
 
-  // Query all stores
-  const { data: stores, isLoading } = trpc.stores.listStores.useQuery({
+  const { data: stores = [], isLoading } = trpc.stores.listStores.useQuery({
     limit: 100,
     offset: 0,
-  });  // Filter stores based on search and featured filter
-  const filteredStores = stores?.filter((store) => {
-    const matchesSearch =
-      store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (store.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-
-    const matchesFeatured = !filterFeatured || store.is_featured;
-
-    return matchesSearch && matchesFeatured;
   });
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredStores = useMemo(() => {
+    return stores.filter((store) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        store.name.toLowerCase().includes(normalizedSearch) ||
+        (store.description?.toLowerCase().includes(normalizedSearch) ?? false) ||
+        (store.location?.toLowerCase().includes(normalizedSearch) ?? false);
+
+      const matchesFeatured = !filterFeatured || store.is_featured;
+
+      return matchesSearch && matchesFeatured;
+    });
+  }, [stores, normalizedSearch, filterFeatured]);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-12">
         <div className="container">
           <h1 className="text-4xl font-bold mb-4">Tiendas</h1>
@@ -38,14 +43,13 @@ export default function Stores() {
       </div>
 
       <div className="container py-8">
-        {/* Search and Filters */}
         <Card className="p-6 mb-8">
           <div className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
               <Input
                 type="text"
-                placeholder="Buscar tiendas..."
+                placeholder="Buscar por tienda, descripción o ubicación..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -59,16 +63,21 @@ export default function Stores() {
               >
                 ⭐ Destacadas
               </Button>
+
+              {searchQuery && (
+                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                  Limpiar búsqueda
+                </Button>
+              )}
             </div>
           </div>
         </Card>
 
-        {/* Results */}
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <Loader2 className="w-8 h-8 animate-spin" />
           </div>
-        ) : filteredStores && filteredStores.length > 0 ? (
+        ) : filteredStores.length > 0 ? (
           <>
             <div className="mb-4">
               <p className="text-slate-600">
@@ -99,7 +108,7 @@ export default function Stores() {
             <h3 className="text-xl font-semibold mb-2">No se encontraron tiendas</h3>
             <p className="text-slate-600 mb-4">
               {searchQuery
-                ? "Intenta con otro término de búsqueda"
+                ? "Intenta con otro término de búsqueda o limpia el filtro actual."
                 : "Aún no hay tiendas disponibles"}
             </p>
             {searchQuery && (
