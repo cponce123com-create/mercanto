@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Lock, Mail, Store, ChevronLeft } from "lucide-react";
+import { Loader2, Lock, Mail, Store, ChevronLeft, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -48,8 +48,18 @@ export default function LoginPage() {
         throw new Error(data?.message || "No se pudo iniciar sesión");
       }
 
+      const role = data?.user?.role;
+
       toast.success("Sesión iniciada correctamente");
-      setLocation("/vendor");
+
+      if (role === "admin") {
+        setLocation("/profile");
+      } else if (role === "vendor") {
+        setLocation("/vendor");
+      } else {
+        setLocation("/profile");
+      }
+
       window.location.reload();
     } catch (error) {
       const message =
@@ -81,6 +91,11 @@ export default function LoginPage() {
               <p className="text-slate-600 mt-2">
                 Accede a tu cuenta sin depender de Manus
               </p>
+
+              <div className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Administradores y compradores entran a su perfil. Los vendedores a su panel.
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
