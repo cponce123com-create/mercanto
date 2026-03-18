@@ -14,6 +14,7 @@ import VendorProducts from "./pages/VendorProducts";
 import VendorStoreSettings from "./pages/VendorStoreSettings";
 import LoginPage from "./pages/Login";
 import RegisterPage from "./pages/Register";
+import ProfilePage from "./pages/Profile";
 import NotFound from "@/pages/NotFound";
 
 function Router() {
@@ -23,6 +24,8 @@ function Router() {
 
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/profile" component={ProfilePage} />
+      <Route path="/perfil" component={ProfilePage} />
 
       <Route path="/search" component={Search} />
 
