@@ -1,11 +1,11 @@
 import { COOKIE_NAME } from "@shared/const";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { uploadRouter } from "./upload-routes";
 import * as db from "./db";
-import { z } from "zod";
 
 // Helper to create vendor-only procedures
 const vendorProcedure = protectedProcedure.use(async ({ ctx, next }) => {
@@ -29,14 +29,64 @@ const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   return next({ ctx });
 });
 
-export const appRouter = router({
-    system: systemRouter,
-    upload: uploadRouter,
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
 
-    // ============================================================================
-    // AUTH ROUTES
-    // ============================================================================
-    auth: router({
+async function getUniqueStoreSlug(baseValue: string) {
+  const baseSlug = slugify(baseValue) || "tienda";
+  let slug = baseSlug;
+  let counter = 2;
+
+  while (await db.getStoreBySlug(slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  return slug;
+}
+
+async function getUniqueProductSlug(baseValue: string) {
+  const baseSlug = slugify(baseValue) || "producto";
+  let slug = baseSlug;
+  let counter = 2;
+
+  while (await db.getProductBySlug(slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  return slug;
+}
+
+async function getUniqueTacoraSlug(baseValue: string) {
+  const baseSlug = slugify(baseValue) || "publicacion";
+  let slug = baseSlug;
+  let counter = 2;
+
+  while (await db.getTacoraPostBySlug(slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  return slug;
+}
+
+export const appRouter = router({
+  system: systemRouter,
+  upload: uploadRouter,
+
+  // ============================================================================
+  // AUTH ROUTES
+  // ============================================================================
+  auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -77,7 +127,6 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // Check if user already has a store
         const existingStore = await db.getStoreByUserId(ctx.user.id);
         if (existingStore) {
           throw new TRPCError({
@@ -86,22 +135,8 @@ export const appRouter = router({
           });
         }
 
-        // Generate slug from store name
-        const slug = input.storeName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "");
+        const slug = await getUniqueStoreSlug(input.storeName);
 
-        // Check if slug is unique
-        const existingSlug = await db.getStoreBySlug(slug);
-        if (existingSlug) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Store name already taken",
-          });
-        }
-
-        // Create store
         await db.createStore({
           user_id: ctx.user.id,
           name: input.storeName,
@@ -110,7 +145,6 @@ export const appRouter = router({
           main_category_id: input.mainCategoryId,
         });
 
-        // Update user role to vendor
         await db.updateUser(ctx.user.id, { role: "vendor" });
 
         return { success: true, slug };
@@ -134,20 +168,22 @@ export const appRouter = router({
       return { ...store, gallery: images };
     }),
 
-    getStore: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
-      const store = await db.getStoreBySlug(input.slug);
-      if (!store) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Store not found",
-        });
-      }
+    getStore: publicProcedure
+      .input(z.object({ slug: z.string() }))
+      .query(async ({ input }) => {
+        const store = await db.getStoreBySlug(input.slug);
+        if (!store) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Store not found",
+          });
+        }
 
-      const images = await db.getStoreGalleryImages(store.id);
-      const products = await db.getProductsByStore(store.id);
+        const images = await db.getStoreGalleryImages(store.id);
+        const products = await db.getProductsByStore(store.id);
 
-      return { ...store, gallery: images, products };
-    }),
+        return { ...store, gallery: images, products };
+      }),
 
     listStores: publicProcedure
       .input(
@@ -196,9 +232,11 @@ export const appRouter = router({
       return await db.getCategories();
     }),
 
-    getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
-      return await db.getCategoryBySlug(input.slug);
-    }),
+    getBySlug: publicProcedure
+      .input(z.object({ slug: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getCategoryBySlug(input.slug);
+      }),
 
     create: adminProcedure
       .input(
@@ -231,20 +269,22 @@ export const appRouter = router({
         return await db.searchProducts(input.query, input.limit, input.offset);
       }),
 
-    getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
-      const product = await db.getProductBySlug(input.slug);
-      if (!product) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Product not found",
-        });
-      }
+    getBySlug: publicProcedure
+      .input(z.object({ slug: z.string() }))
+      .query(async ({ input }) => {
+        const product = await db.getProductBySlug(input.slug);
+        if (!product) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Product not found",
+          });
+        }
 
-      const images = await db.getProductImages(product.id);
-      const store = await db.getStoreById(product.store_id);
+        const images = await db.getProductImages(product.id);
+        const store = await db.getStoreById(product.store_id);
 
-      return { ...product, images, store };
-    }),
+        return { ...product, images, store };
+      }),
 
     getByCategory: publicProcedure
       .input(
@@ -274,6 +314,7 @@ export const appRouter = router({
           images: await db.getProductImages(product.id),
         }))
       );
+
       return productsWithImages;
     }),
 
@@ -298,7 +339,6 @@ export const appRouter = router({
           });
         }
 
-        // Check product limit (max 15 per store)
         const products = await db.getProductsByStore(store.id);
         if (products.length >= 15) {
           throw new TRPCError({
@@ -307,10 +347,7 @@ export const appRouter = router({
           });
         }
 
-        const slug = input.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "");
+        const slug = await getUniqueProductSlug(input.name);
 
         await db.createProduct({
           store_id: store.id,
@@ -324,7 +361,7 @@ export const appRouter = router({
           unit: input.unit,
         });
 
-        return { success: true };
+        return { success: true, slug };
       }),
 
     update: vendorProcedure
@@ -368,26 +405,28 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    delete: vendorProcedure.input(z.object({ productId: z.number() })).mutation(async ({ ctx, input }) => {
-      const product = await db.getProductById(input.productId);
-      if (!product) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Product not found",
-        });
-      }
+    delete: vendorProcedure
+      .input(z.object({ productId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const product = await db.getProductById(input.productId);
+        if (!product) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Product not found",
+          });
+        }
 
-      const store = await db.getStoreByUserId(ctx.user.id);
-      if (!store || product.store_id !== store.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Cannot delete this product",
-        });
-      }
+        const store = await db.getStoreByUserId(ctx.user.id);
+        if (!store || product.store_id !== store.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Cannot delete this product",
+          });
+        }
 
-      await db.deleteProduct(input.productId);
-      return { success: true };
-    }),
+        await db.deleteProduct(input.productId);
+        return { success: true };
+      }),
   }),
 
   // ============================================================================
@@ -405,20 +444,22 @@ export const appRouter = router({
         return await db.listTacoraPosts(input.limit, input.offset);
       }),
 
-    getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
-      const post = await db.getTacoraPostBySlug(input.slug);
-      if (!post) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Post not found",
-        });
-      }
+    getBySlug: publicProcedure
+      .input(z.object({ slug: z.string() }))
+      .query(async ({ input }) => {
+        const post = await db.getTacoraPostBySlug(input.slug);
+        if (!post) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Post not found",
+          });
+        }
 
-      const images = await db.getTacoraImages(post.id);
-      const user = await db.getUserById(post.user_id);
+        const images = await db.getTacoraImages(post.id);
+        const user = await db.getUserById(post.user_id);
 
-      return { ...post, images, user };
-    }),
+        return { ...post, images, user };
+      }),
 
     getMyPosts: protectedProcedure.query(async ({ ctx }) => {
       return await db.getTacoraPostsByUser(ctx.user.id);
@@ -436,11 +477,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const slug = input.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "");
-
+        const slug = await getUniqueTacoraSlug(input.title);
         const store = await db.getStoreByUserId(ctx.user.id);
 
         await db.createTacoraPost({
@@ -455,7 +492,7 @@ export const appRouter = router({
           location: input.location,
         });
 
-        return { success: true };
+        return { success: true, slug };
       }),
 
     update: protectedProcedure
@@ -491,18 +528,20 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    delete: protectedProcedure.input(z.object({ postId: z.number() })).mutation(async ({ ctx, input }) => {
-      const post = await db.getTacoraPostById(input.postId);
-      if (!post || post.user_id !== ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Cannot delete this post",
-        });
-      }
+    delete: protectedProcedure
+      .input(z.object({ postId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const post = await db.getTacoraPostById(input.postId);
+        if (!post || post.user_id !== ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Cannot delete this post",
+          });
+        }
 
-      await db.updateTacoraPost(input.postId, { status: "inactive" });
-      return { success: true };
-    }),
+        await db.updateTacoraPost(input.postId, { status: "inactive" });
+        return { success: true };
+      }),
   }),
 
   // ============================================================================
@@ -521,6 +560,13 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (!input.productId && !input.tacoraPostId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "productId or tacoraPostId is required",
+          });
+        }
+
         await db.addFavorite(ctx.user.id, input.productId, input.tacoraPostId);
         return { success: true };
       }),
@@ -533,6 +579,13 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (!input.productId && !input.tacoraPostId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "productId or tacoraPostId is required",
+          });
+        }
+
         await db.removeFavorite(ctx.user.id, input.productId, input.tacoraPostId);
         return { success: true };
       }),
@@ -562,13 +615,15 @@ export const appRouter = router({
       .input(
         z.object({
           storeId: z.number(),
-          items: z.array(
-            z.object({
-              productId: z.number(),
-              quantity: z.number(),
-              unitPrice: z.string(),
-            })
-          ),
+          items: z
+            .array(
+              z.object({
+                productId: z.number(),
+                quantity: z.number().min(1),
+                unitPrice: z.string(),
+              })
+            )
+            .min(1),
           totalAmount: z.string(),
           deliveryType: z.enum(["pickup", "delivery"]),
           deliveryAddress: z.string().optional(),
@@ -576,7 +631,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const result = await db.createOrder({
+        const order = await db.createOrder({
           buyer_id: ctx.user.id,
           store_id: input.storeId,
           total_amount: input.totalAmount,
@@ -585,8 +640,19 @@ export const appRouter = router({
           notes: input.notes,
         });
 
-        // TODO: Add order items
-        return { success: true }
+        await db.createOrderItems(
+          order.id,
+          input.items.map((item) => ({
+            product_id: item.productId,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+          }))
+        );
+
+        return {
+          success: true,
+          orderId: order.id,
+        };
       }),
 
     updateStatus: vendorProcedure
