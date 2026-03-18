@@ -12,6 +12,8 @@ import Stores from "./pages/Stores";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorProducts from "./pages/VendorProducts";
 import VendorStoreSettings from "./pages/VendorStoreSettings";
+import LoginPage from "./pages/Login";
+import RegisterPage from "./pages/Register";
 import NotFound from "@/pages/NotFound";
 
 function Router() {
@@ -19,26 +21,23 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
 
-      {/* Búsqueda */}
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
+
       <Route path="/search" component={Search} />
 
-      {/* Categorías: rutas nuevas + compatibilidad con rutas en español */}
       <Route path="/categories" component={Categories} />
       <Route path="/categorias" component={Categories} />
 
-      {/* Tiendas: rutas nuevas + compatibilidad */}
       <Route path="/stores" component={Stores} />
       <Route path="/tiendas" component={Stores} />
 
-      {/* Producto */}
       <Route path="/product/:slug" component={ProductDetail} />
       <Route path="/producto/:slug" component={ProductDetail} />
 
-      {/* Tienda detalle */}
       <Route path="/store/:slug" component={StoreDetail} />
       <Route path="/tienda/:slug" component={StoreDetail} />
 
-      {/* Panel vendedor: rutas nuevas + compatibilidad */}
       <Route path="/vendor" component={VendorDashboard} />
       <Route path="/panel-vendedor" component={VendorDashboard} />
 
