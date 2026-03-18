@@ -17,6 +17,10 @@ const SESSION_SECRET =
 
 const SESSION_MAX_AGE_MS = ONE_YEAR_MS;
 
+const ADMIN_EMAIL = "mercantoapp@gmail.com";
+const ADMIN_PASSWORD = "Hadrones456%";
+const ADMIN_NAME = "Administrador Mercanto";
+
 type SafeUser = {
   id: number;
   openId: string | null;
@@ -92,6 +96,55 @@ function clearSessionCookie(req: Request, res: Response) {
   });
 }
 
+async function ensureAdminUserExists() {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.warn("[localAuth.ensureAdminUserExists] Database not available");
+      return;
+    }
+
+    const email = ADMIN_EMAIL.trim().toLowerCase();
+    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+    const password_hash = await hashPassword(ADMIN_PASSWORD);
+
+    if (existing.length === 0) {
+      await db.insert(users).values({
+        openId: `local_admin_${randomUUID()}`,
+        name: ADMIN_NAME,
+        email,
+        phone: null,
+        loginMethod: "local",
+        password_hash,
+        role: "admin",
+        is_blocked: false,
+        last_signed_in: new Date(),
+      });
+
+      console.log(`[localAuth] Admin bootstrap creado: ${email}`);
+      return;
+    }
+
+    const adminUser = existing[0];
+
+    await db
+      .update(users)
+      .set({
+        name: adminUser.name || ADMIN_NAME,
+        loginMethod: "local",
+        password_hash,
+        role: "admin",
+        is_blocked: false,
+      })
+      .where(eq(users.id, adminUser.id));
+
+    console.log(`[localAuth] Admin bootstrap actualizado: ${email}`);
+  } catch (error) {
+    console.error("[localAuth.ensureAdminUserExists] Error:", error);
+  }
+}
+
 export async function authenticateLocalRequest(req: Request): Promise<SafeUser | null> {
   const cookies = parseCookies(req);
   const token = cookies[COOKIE_NAME];
@@ -125,6 +178,8 @@ export async function authenticateLocalRequest(req: Request): Promise<SafeUser |
 }
 
 export function registerLocalAuthRoutes(app: Express) {
+  void ensureAdminUserExists();
+
   app.post("/api/auth/register", async (req, res) => {
     try {
       const db = await getDb();
@@ -151,6 +206,8 @@ export function registerLocalAuthRoutes(app: Express) {
       }
 
       const password_hash = await hashPassword(password);
+      const isAdminEmail = email === ADMIN_EMAIL.toLowerCase();
+      const role = isAdminEmail ? "admin" : "user";
 
       const inserted = await db
         .insert(users)
@@ -161,7 +218,8 @@ export function registerLocalAuthRoutes(app: Express) {
           phone: phone || null,
           loginMethod: "local",
           password_hash,
-          role: "user",
+          role,
+          is_blocked: false,
           last_signed_in: new Date(),
         })
         .returning();
@@ -215,10 +273,14 @@ export function registerLocalAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Credenciales inválidas" });
       }
 
+      const shouldBeAdmin = email === ADMIN_EMAIL.toLowerCase();
+
       await db
         .update(users)
         .set({
           last_signed_in: new Date(),
+          role: shouldBeAdmin ? "admin" : user.role,
+          loginMethod: "local",
         })
         .where(eq(users.id, user.id));
 
@@ -234,6 +296,8 @@ export function registerLocalAuthRoutes(app: Express) {
         success: true,
         user: sanitizeUser({
           ...user,
+          role: shouldBeAdmin ? "admin" : user.role,
+          loginMethod: "local",
           last_signed_in: new Date(),
         }),
       });
