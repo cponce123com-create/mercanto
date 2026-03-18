@@ -16,12 +16,13 @@ export const users = pgTable(
   "users",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    openId: varchar("openId", { length: 64 }).notNull().unique(),
+    openId: varchar("openId", { length: 64 }).unique(),
     name: text("name"),
     email: varchar("email", { length: 320 }).unique(),
     phone: varchar("phone", { length: 20 }),
     avatar_url: text("avatar_url"),
-    loginMethod: varchar("loginMethod", { length: 64 }),
+    loginMethod: varchar("loginMethod", { length: 64 }).default("local"),
+    password_hash: text("password_hash"),
     role: text("role").default("user").notNull(),
     is_blocked: boolean("is_blocked").default(false).notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),
@@ -31,6 +32,7 @@ export const users = pgTable(
   (table) => ({
     userEmailIdx: index("user_email_idx").on(table.email),
     userRoleIdx: index("user_role_idx").on(table.role),
+    userOpenIdIdx: index("user_openid_idx").on(table.openId),
   })
 );
 
