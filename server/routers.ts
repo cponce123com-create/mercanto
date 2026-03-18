@@ -472,35 +472,50 @@ becomeVendor: protectedProcedure
       return await db.getTacoraPostsByUser(ctx.user.id);
     }),
 
-    create: protectedProcedure
-      .input(
-        z.object({
-          categoryId: z.number(),
-          title: z.string(),
-          description: z.string().optional(),
-          price: z.string(),
-          condition: z.enum(["new", "like_new", "good", "fair", "poor"]),
-          location: z.string().optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const slug = await getUniqueTacoraSlug(input.title);
-        const store = await db.getStoreByUserId(ctx.user.id);
+create: vendorProcedure
+  .input(
+    z.object({
+      categoryId: z.number(),
+      title: z.string(),
+      description: z.string().optional(),
+      price: z.string(),
+      condition: z.enum(["new", "like_new", "good", "fair", "poor"]),
+      location: z.string().optional(),
+    })
+  )
+  .mutation(async ({ ctx, input }) => {
+    const store = await db.getStoreByUserId(ctx.user.id);
+    if (!store) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Store not found",
+      });
+    }
 
-        await db.createTacoraPost({
-          user_id: ctx.user.id,
-          store_id: store?.id,
-          category_id: input.categoryId,
-          title: input.title,
-          slug,
-          description: input.description,
-          price: input.price,
-          condition: input.condition,
-          location: input.location,
-        });
+    const totalTacora = await db.countTacoraPostsByStore(store.id);
+    if (totalTacora >= 5) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Máximo 5 publicaciones Tacora por tienda",
+      });
+    }
 
-        return { success: true, slug };
-      }),
+    const slug = await getUniqueTacoraSlug(input.title);
+
+    await db.createTacoraPost({
+      user_id: ctx.user.id,
+      store_id: store.id,
+      category_id: input.categoryId,
+      title: input.title,
+      slug,
+      description: input.description,
+      price: input.price,
+      condition: input.condition,
+      location: input.location,
+    });
+
+    return { success: true, slug };
+  }),
 
     update: protectedProcedure
       .input(
