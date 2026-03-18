@@ -43,23 +43,36 @@ export async function getDb() {
 // ============================================================================
 
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot upsert user: database not available");
     return;
   }
 
+  const hasOpenId = typeof user.openId === "string" && user.openId.trim().length > 0;
+  const hasEmail = typeof user.email === "string" && user.email.trim().length > 0;
+
+  if (!hasOpenId && !hasEmail) {
+    throw new Error("User openId or email is required for upsert");
+  }
+
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
+    const values: InsertUser = {};
     const updateSet: Record<string, any> = {};
 
-    const textFields = ["name", "email", "loginMethod", "phone", "avatar_url"] as const;
+    if (hasOpenId) {
+      values.openId = user.openId!.trim();
+    }
+
+    const textFields = [
+      "name",
+      "email",
+      "loginMethod",
+      "phone",
+      "avatar_url",
+      "password_hash",
+    ] as const;
+
     type TextField = (typeof textFields)[number];
 
     const assignNullable = (field: TextField) => {
@@ -75,25 +88,33 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.last_signed_in !== undefined) {
       values.last_signed_in = user.last_signed_in;
       updateSet.last_signed_in = user.last_signed_in;
+    } else {
+      values.last_signed_in = new Date();
+      updateSet.last_signed_in = new Date();
     }
+
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    } else if (hasOpenId && user.openId === ENV.ownerOpenId) {
       values.role = "admin";
       updateSet.role = "admin";
-    }
-
-    if (!values.last_signed_in) {
-      values.last_signed_in = new Date();
     }
 
     if (Object.keys(updateSet).length === 0) {
       updateSet.last_signed_in = new Date();
     }
 
+    if (hasOpenId) {
+      await db.insert(users).values(values).onConflictDoUpdate({
+        target: users.openId,
+        set: updateSet,
+      });
+      return;
+    }
+
     await db.insert(users).values(values).onConflictDoUpdate({
-      target: users.openId,
+      target: users.email,
       set: updateSet,
     });
   } catch (error) {
@@ -109,7 +130,24 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const normalizedOpenId = openId.trim();
+  if (!normalizedOpenId) return undefined;
+
+  const result = await db.select().from(users).where(eq(users.openId, normalizedOpenId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user by email: database not available");
+    return undefined;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return undefined;
+
+  const result = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -126,6 +164,18 @@ export async function updateUser(id: number, data: Partial<typeof users.$inferIn
   if (!db) throw new Error("Database not available");
 
   return await db.update(users).set(data).where(eq(users.id, id));
+}
+
+export async function updateUserLastSignedIn(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .update(users)
+    .set({
+      last_signed_in: new Date(),
+    })
+    .where(eq(users.id, id));
 }
 
 // ============================================================================
