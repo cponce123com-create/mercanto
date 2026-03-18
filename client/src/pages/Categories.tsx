@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, Search, Folder } from "lucide-react";
+import { Loader2, ChevronLeft, Search, Folder, ImageIcon } from "lucide-react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Input } from "@/components/ui/input";
+import { demoCategories, demoProducts } from "@/lib/demo-content";
 
 export default function CategoriesPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -24,19 +25,35 @@ export default function CategoriesPage() {
     }
   );
 
-  const selectedCategoryData = categories.find((c) => c.id === selectedCategory);
+  const visualCategories = useMemo(() => {
+    if (categories.length > 0) return categories;
+    return demoCategories;
+  }, [categories]);
+
+  const isDemoCategories = !categoriesLoading && categories.length === 0;
+
+  const selectedCategoryData = visualCategories.find((c) => c.id === selectedCategory);
+
+  const visualProducts = useMemo(() => {
+    if (products.length > 0) return products;
+    if (selectedCategory === null) return [];
+    return demoProducts.filter((product) => product.categoryId === selectedCategory);
+  }, [products, selectedCategory]);
+
+  const isDemoProducts =
+    selectedCategory !== null && !productsLoading && products.length === 0 && categories.length === 0;
 
   const filteredCategories = useMemo(() => {
     const q = categorySearch.trim().toLowerCase();
-    if (!q) return categories;
+    if (!q) return visualCategories;
 
-    return categories.filter((category) => {
+    return visualCategories.filter((category) => {
       return (
         category.name.toLowerCase().includes(q) ||
         (category.description?.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [categories, categorySearch]);
+  }, [visualCategories, categorySearch]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -48,7 +65,14 @@ export default function CategoriesPage() {
               Volver
             </span>
           </Link>
-          <h1 className="text-2xl font-bold">Categorías</h1>
+          <div className="flex flex-wrap items-center gap-3 justify-between">
+            <h1 className="text-2xl font-bold">Categorías</h1>
+            {isDemoCategories && (
+              <span className="text-sm bg-amber-100 text-amber-900 px-3 py-1 rounded-full font-medium">
+                Mostrando contenido demo
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -108,73 +132,95 @@ export default function CategoriesPage() {
               <div className="flex justify-center py-12">
                 <Loader2 className="animate-spin w-6 h-6" />
               </div>
-            ) : products.length > 0 ? (
+            ) : visualProducts.length > 0 ? (
               <>
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold">{selectedCategoryData?.name}</h2>
-                  {selectedCategoryData?.description && (
-                    <p className="text-slate-600 mt-2">{selectedCategoryData.description}</p>
+                <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h2 className="text-2xl font-bold">{selectedCategoryData?.name}</h2>
+                    {selectedCategoryData?.description && (
+                      <p className="text-slate-600 mt-2">{selectedCategoryData.description}</p>
+                    )}
+                  </div>
+
+                  {isDemoProducts && (
+                    <span className="text-sm bg-amber-100 text-amber-900 px-3 py-1 rounded-full font-medium">
+                      Productos demo
+                    </span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                  {products.map((product) => (
-                    <Link key={product.id} href={`/product/${product.slug}`}>
-                      <div className="block cursor-pointer">
-                        <Card className="h-full hover:shadow-lg transition-shadow overflow-hidden">
-                          <div className="bg-slate-200 h-40 flex items-center justify-center">
-                            <span className="text-slate-400">Sin imagen</span>
+                  {visualProducts.map((product: any) => {
+                    const imageUrl =
+                      product.image_url ||
+                      product.imageUrl ||
+                      "https://placehold.co/800x600/E2E8F0/0F172A?text=Producto";
+
+                    return (
+                      <Card
+                        key={product.id}
+                        className="h-full hover:shadow-lg transition-shadow overflow-hidden border-slate-200"
+                      >
+                        <div className="relative bg-slate-100 h-44 overflow-hidden">
+                          <img
+                            src={imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-3 right-3 bg-white/90 rounded-full px-3 py-1 text-xs font-medium text-slate-700 flex items-center gap-1">
+                            <ImageIcon className="w-3 h-3" />
+                            Referencial
                           </div>
+                        </div>
 
-                          <CardContent className="p-4">
-                            <h3 className="font-semibold text-slate-900 line-clamp-2 mb-2 min-h-[3rem]">
-                              {product.name}
-                            </h3>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold text-slate-900 line-clamp-2 mb-2 min-h-[3rem]">
+                            {product.name}
+                          </h3>
 
-                            {product.description ? (
-                              <p className="text-sm text-slate-600 line-clamp-2 mb-3 min-h-[2.5rem]">
-                                {product.description}
-                              </p>
-                            ) : (
-                              <div className="mb-3 min-h-[2.5rem]" />
-                            )}
+                          {product.description ? (
+                            <p className="text-sm text-slate-600 line-clamp-2 mb-3 min-h-[2.5rem]">
+                              {product.description}
+                            </p>
+                          ) : (
+                            <div className="mb-3 min-h-[2.5rem]" />
+                          )}
 
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                {product.offer_price ? (
-                                  <div className="flex flex-col">
-                                    <span className="text-lg font-bold text-green-600">
-                                      S/ {product.offer_price}
-                                    </span>
-                                    <span className="text-sm text-slate-500 line-through">
-                                      S/ {product.price}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className="text-lg font-bold text-slate-900">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              {product.offer_price ? (
+                                <div className="flex flex-col">
+                                  <span className="text-lg font-bold text-green-600">
+                                    S/ {product.offer_price}
+                                  </span>
+                                  <span className="text-sm text-slate-500 line-through">
                                     S/ {product.price}
                                   </span>
-                                )}
-                              </div>
-
-                              {product.unit && (
-                                <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded shrink-0">
-                                  {product.unit}
+                                </div>
+                              ) : (
+                                <span className="text-lg font-bold text-slate-900">
+                                  S/ {product.price}
                                 </span>
                               )}
                             </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </Link>
-                  ))}
+
+                            {product.unit && (
+                              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded shrink-0">
+                                {product.unit}
+                              </span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
 
                 <div className="flex justify-center gap-4">
                   <Button
                     variant="outline"
                     onClick={() => setOffset(Math.max(0, offset - 20))}
-                    disabled={offset === 0}
+                    disabled={offset === 0 || isDemoProducts}
                   >
                     Anterior
                   </Button>
@@ -182,7 +228,7 @@ export default function CategoriesPage() {
                   <Button
                     variant="outline"
                     onClick={() => setOffset(offset + 20)}
-                    disabled={products.length < 20}
+                    disabled={visualProducts.length < 20 || isDemoProducts}
                   >
                     Siguiente
                   </Button>
