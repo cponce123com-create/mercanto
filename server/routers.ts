@@ -125,37 +125,44 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    becomeVendor: protectedProcedure
-      .input(
-        z.object({
-          storeName: z.string().min(3).max(100),
-          description: z.string().optional(),
-          mainCategoryId: z.number().optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const existingStore = await db.getStoreByUserId(ctx.user.id);
-        if (existingStore) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "You already have a store",
-          });
-        }
+becomeVendor: protectedProcedure
+  .input(
+    z.object({
+      storeName: z.string().min(3).max(100),
+      description: z.string().optional(),
+      mainCategoryId: z.number().optional(),
+    })
+  )
+  .mutation(async ({ ctx, input }) => {
+    const existingStore = await db.getStoreByUserId(ctx.user.id);
+    if (existingStore) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "You already have a store",
+      });
+    }
 
-        const slug = await getUniqueStoreSlug(input.storeName);
+    const totalStores = await db.countStores();
+    if (totalStores >= 200) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Se alcanzó el límite máximo de 200 tiendas",
+      });
+    }
 
-        await db.createStore({
-          user_id: ctx.user.id,
-          name: input.storeName,
-          slug,
-          description: input.description,
-          main_category_id: input.mainCategoryId,
-        });
+    const slug = await getUniqueStoreSlug(input.storeName);
 
-        await db.updateUser(ctx.user.id, { role: "vendor" });
+    await db.createStore({
+      user_id: ctx.user.id,
+      name: input.storeName,
+      slug,
+      description: input.description,
+      main_category_id: input.mainCategoryId,
+    });
 
-        return { success: true, slug };
-      }),
+    await db.updateUser(ctx.user.id, { role: "vendor" });
+
+    return { success: true, slug };
   }),
 
   // ============================================================================
