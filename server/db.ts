@@ -514,6 +514,18 @@ export async function getTacoraPostsByUser(user_id: number) {
   return await db.select().from(tacora_posts).where(eq(tacora_posts.user_id, user_id));
 }
 
+export async function countTacoraPostsByStore(store_id: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tacora_posts)
+    .where(eq(tacora_posts.store_id, store_id));
+
+  return result[0]?.count ?? 0;
+}
+
 export async function createTacoraPost(data: {
   user_id: number;
   store_id?: number;
