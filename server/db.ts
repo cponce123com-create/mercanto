@@ -345,6 +345,71 @@ export async function getTacoraPostById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function listTacoraPosts(limit = 20, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(tacora_posts)
+    .where(eq(tacora_posts.status, "active"))
+    .orderBy(desc(tacora_posts.created_at))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getTacoraPostBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(tacora_posts).where(eq(tacora_posts.slug, slug)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getTacoraPostsByUser(user_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(tacora_posts).where(eq(tacora_posts.user_id, user_id));
+}
+
+export async function createTacoraPost(data: {
+  user_id: number;
+  category_id: number;
+  title: string;
+  slug: string;
+  description?: string;
+  price: string;
+  condition: string;
+  location?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(tacora_posts).values({
+    ...data,
+    status: "active",
+  });
+}
+
+export async function updateTacoraPost(id: number, data: Partial<typeof tacora_posts.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(tacora_posts).set(data).where(eq(tacora_posts.id, id));
+}
+
+// ============================================================================
+// FAVORITE OPERATIONS
+// ============================================================================
+
+export async function getUserFavorites(user_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(favorites).where(eq(favorites.user_id, user_id));
+}
+
 // ============================================================================
 // BANNER OPERATIONS
 // ============================================================================
