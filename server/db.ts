@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, asc } from "drizzle-orm";
+import { eq, and, or, sql, desc, asc, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -248,20 +248,107 @@ export async function getProductsByStore(store_id: number) {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(products).where(eq(products.store_id, store_id));
+  return await db
+    .select()
+    .from(products)
+    .where(and(eq(products.store_id, store_id), eq(products.status, "active")))
+    .orderBy(desc(products.created_at));
 }
 
-export async function searchProducts(query: string, limit = 20, offset = 0) {
+export async function getProductsByStoreForAdmin(store_id: number) {
   const db = await getDb();
   if (!db) return [];
 
   return await db
     .select()
     .from(products)
-    .where(and(eq(products.status, "active"), sql`${products.name} ILIKE ${`%${query}%`}`))
+    .where(eq(products.store_id, store_id))
+    .orderBy(desc(products.created_at));
+}
+
+export async function getProductsByStoreWithImages(store_id: number, includeInactive = false) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const productList = includeInactive
+    ? await db
+        .select()
+        .from(products)
+        .where(eq(products.store_id, store_id))
+        .orderBy(desc(products.created_at))
+    : await db
+        .select()
+        .from(products)
+        .where(and(eq(products.store_id, store_id), eq(products.status, "active")))
+        .orderBy(desc(products.created_at));
+
+  if (productList.length === 0) return [];
+
+  const productIds = productList.map((product) => product.id);
+  const allImages = await db
+    .select()
+    .from(product_images)
+    .where(inArray(product_images.product_id, productIds))
+    .orderBy(asc(product_images.sort_order), asc(product_images.id));
+
+  return productList.map((product) => ({
+    ...product,
+    images: allImages.filter((image) => image.product_id === product.id),
+  }));
+}
+
+export async function searchProducts(query: string, limit = 20, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return [];
+
+  const rows = await db
+    .select({
+      id: products.id,
+      store_id: products.store_id,
+      category_id: products.category_id,
+      name: products.name,
+      slug: products.slug,
+      description: products.description,
+      price: products.price,
+      offer_price: products.offer_price,
+      stock: products.stock,
+      unit: products.unit,
+      status: products.status,
+      is_featured: products.is_featured,
+      total_views: products.total_views,
+      created_at: products.created_at,
+      updated_at: products.updated_at,
+      store_name: stores.name,
+      image_url: sql<string | null>`
+        (
+          select pi.url
+          from ${product_images} pi
+          where pi.product_id = ${products.id}
+          order by pi.sort_order asc, pi.id asc
+          limit 1
+        )
+      `,
+    })
+    .from(products)
+    .leftJoin(stores, eq(stores.id, products.store_id))
+    .where(
+      and(
+        eq(products.status, "active"),
+        or(
+          sql`${products.name} ILIKE ${`%${normalizedQuery}%`}`,
+          sql`${products.description} ILIKE ${`%${normalizedQuery}%`}`,
+          sql`${stores.name} ILIKE ${`%${normalizedQuery}%`}`
+        )
+      )
+    )
     .orderBy(desc(products.created_at))
     .limit(limit)
     .offset(offset);
+
+  return rows;
 }
 
 export async function getProductsByCategory(category_id: number, limit = 20, offset = 0) {
@@ -619,7 +706,11 @@ export async function getProductImages(product_id: number) {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(product_images).where(eq(product_images.product_id, product_id));
+  return await db
+    .select()
+    .from(product_images)
+    .where(eq(product_images.product_id, product_id))
+    .orderBy(asc(product_images.sort_order), asc(product_images.id));
 }
 
 export async function deleteProductImage(id: number) {
