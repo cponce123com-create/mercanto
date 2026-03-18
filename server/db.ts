@@ -1,4 +1,4 @@
-import { eq, and, lte, gte, sql, desc, asc } from "drizzle-orm";
+import { eq, and, sql, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -110,7 +110,6 @@ export async function getUserByOpenId(openId: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -143,7 +142,7 @@ export async function createStore(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(stores).values({
+  return await db.insert(stores).values({
     user_id: data.user_id,
     name: data.name,
     slug: data.slug,
@@ -151,8 +150,6 @@ export async function createStore(data: {
     main_category_id: data.main_category_id,
     status: "pending",
   });
-
-  return result;
 }
 
 export async function getStoreByUserId(user_id: number) {
@@ -375,6 +372,7 @@ export async function getTacoraPostsByUser(user_id: number) {
 
 export async function createTacoraPost(data: {
   user_id: number;
+  store_id?: number;
   category_id: number;
   title: string;
   slug: string;
@@ -387,7 +385,15 @@ export async function createTacoraPost(data: {
   if (!db) throw new Error("Database not available");
 
   return await db.insert(tacora_posts).values({
-    ...data,
+    user_id: data.user_id,
+    store_id: data.store_id,
+    category_id: data.category_id,
+    title: data.title,
+    slug: data.slug,
+    description: data.description,
+    price: data.price,
+    condition: data.condition,
+    location: data.location,
     status: "active",
   });
 }
@@ -407,7 +413,175 @@ export async function getUserFavorites(user_id: number) {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(favorites).where(eq(favorites.user_id, user_id));
+  return await db
+    .select()
+    .from(favorites)
+    .where(eq(favorites.user_id, user_id))
+    .orderBy(desc(favorites.created_at));
+}
+
+export async function addFavorite(user_id: number, product_id?: number, tacora_post_id?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (!product_id && !tacora_post_id) {
+    throw new Error("product_id or tacora_post_id is required");
+  }
+
+  const conditions = [eq(favorites.user_id, user_id)];
+
+  if (product_id) {
+    conditions.push(eq(favorites.product_id, product_id));
+  } else {
+    conditions.push(sql`${favorites.product_id} IS NULL`);
+  }
+
+  if (tacora_post_id) {
+    conditions.push(eq(favorites.tacora_post_id, tacora_post_id));
+  } else {
+    conditions.push(sql`${favorites.tacora_post_id} IS NULL`);
+  }
+
+  const existing = await db
+    .select()
+    .from(favorites)
+    .where(and(...conditions))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return existing[0];
+  }
+
+  const inserted = await db
+    .insert(favorites)
+    .values({
+      user_id,
+      product_id,
+      tacora_post_id,
+    })
+    .returning();
+
+  return inserted[0];
+}
+
+export async function removeFavorite(user_id: number, product_id?: number, tacora_post_id?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (!product_id && !tacora_post_id) {
+    throw new Error("product_id or tacora_post_id is required");
+  }
+
+  const conditions = [eq(favorites.user_id, user_id)];
+
+  if (product_id) {
+    conditions.push(eq(favorites.product_id, product_id));
+  } else {
+    conditions.push(sql`${favorites.product_id} IS NULL`);
+  }
+
+  if (tacora_post_id) {
+    conditions.push(eq(favorites.tacora_post_id, tacora_post_id));
+  } else {
+    conditions.push(sql`${favorites.tacora_post_id} IS NULL`);
+  }
+
+  return await db.delete(favorites).where(and(...conditions));
+}
+
+// ============================================================================
+// ORDER OPERATIONS
+// ============================================================================
+
+export async function createOrder(data: {
+  buyer_id: number;
+  store_id: number;
+  total_amount: string;
+  delivery_type: string;
+  delivery_address?: string;
+  notes?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const inserted = await db
+    .insert(orders)
+    .values({
+      buyer_id: data.buyer_id,
+      store_id: data.store_id,
+      total_amount: data.total_amount,
+      delivery_type: data.delivery_type,
+      delivery_address: data.delivery_address,
+      notes: data.notes,
+      status: "pending",
+    })
+    .returning();
+
+  return inserted[0];
+}
+
+export async function createOrderItems(
+  order_id: number,
+  items: Array<{
+    product_id: number;
+    quantity: number;
+    unit_price: string;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (items.length === 0) return [];
+
+  const values = items.map((item) => {
+    const subtotal = (Number(item.unit_price) * item.quantity).toFixed(2);
+    return {
+      order_id,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      subtotal,
+    };
+  });
+
+  return await db.insert(order_items).values(values).returning();
+}
+
+export async function getOrderById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getOrdersByBuyer(buyer_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(orders)
+    .where(eq(orders.buyer_id, buyer_id))
+    .orderBy(desc(orders.created_at));
+}
+
+export async function getOrdersByStore(store_id: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(orders)
+    .where(eq(orders.store_id, store_id))
+    .orderBy(desc(orders.created_at));
+}
+
+export async function updateOrderStatus(id: number, status: "pending" | "processing" | "completed" | "cancelled") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(orders).set({ status }).where(eq(orders.id, id));
 }
 
 // ============================================================================
