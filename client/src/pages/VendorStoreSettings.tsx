@@ -1,17 +1,24 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/ImageUpload";
-import { Loader2, MapPin, Phone } from "lucide-react";
+import {
+  Loader2,
+  MapPin,
+  Phone,
+  Store,
+  Image as ImageIcon,
+  LayoutPanelTop,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export default function VendorStoreSettings() {
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -20,13 +27,14 @@ export default function VendorStoreSettings() {
     schedule: "",
   });
 
-  // Queries
-  const { data: store } = trpc.stores.getMyStore.useQuery();
+  const utils = trpc.useUtils();
 
-  // Mutations
+  const { data: store, isLoading: storeLoading } = trpc.stores.getMyStore.useQuery();
+
   const updateStore = trpc.stores.updateStore.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Tienda actualizada correctamente");
+      await utils.stores.getMyStore.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -34,8 +42,9 @@ export default function VendorStoreSettings() {
   });
 
   const uploadLogo = trpc.upload.uploadStoreLogo.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Logo subido correctamente");
+      await utils.stores.getMyStore.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -43,8 +52,9 @@ export default function VendorStoreSettings() {
   });
 
   const uploadBanner = trpc.upload.uploadStoreBanner.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Banner subido correctamente");
+      await utils.stores.getMyStore.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -52,8 +62,9 @@ export default function VendorStoreSettings() {
   });
 
   const uploadGallery = trpc.upload.uploadStoreGalleryImage.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Imagen de galería subida correctamente");
+      await utils.stores.getMyStore.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -61,15 +72,15 @@ export default function VendorStoreSettings() {
   });
 
   const deleteGalleryImage = trpc.upload.deleteStoreGalleryImage.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Imagen eliminada");
+      await utils.stores.getMyStore.invalidate();
     },
     onError: (error) => {
       toast.error(error.message);
     },
   });
 
-  // Load store data
   useEffect(() => {
     if (store) {
       setFormData({
@@ -81,6 +92,8 @@ export default function VendorStoreSettings() {
       });
     }
   }, [store]);
+
+  const galleryCount = useMemo(() => store?.gallery?.length || 0, [store]);
 
   if (!user) {
     return (
@@ -98,7 +111,7 @@ export default function VendorStoreSettings() {
     );
   }
 
-  if (!store) {
+  if (storeLoading || !store) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -106,47 +119,57 @@ export default function VendorStoreSettings() {
     );
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const isSaving = updateStore.isPending;
+  const isUploadingSomething =
+    uploadLogo.isPending || uploadBanner.isPending || uploadGallery.isPending;
 
-    try {
-      updateStore.mutate({
-        name: formData.name,
-        description: formData.description,
-        whatsapp: formData.whatsapp,
-        location: formData.location,
-        schedule: formData.schedule,
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSaveAll = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    updateStore.mutate({
+      name: formData.name,
+      description: formData.description,
+      whatsapp: formData.whatsapp,
+      location: formData.location,
+      schedule: formData.schedule,
+    });
   };
 
   return (
-    <div className="container py-8">
-      <h1 className="text-3xl font-bold mb-8">Configuración de Tienda</h1>
+    <div className="container py-6 md:py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Configuración de Tienda</h1>
+        <p className="text-slate-600">
+          Actualiza la información, imágenes y presentación de tu tienda
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Logo and Banner */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 space-y-8">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-6">Logo y Banner</h2>
+            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+              <LayoutPanelTop className="w-5 h-5" />
+              Logo y Banner
+            </h2>
 
-            <div className="space-y-6">
-              {/* Logo */}
+            <div className="space-y-8">
               <div>
-                <label className="block text-sm font-medium mb-3">Logo de Tienda</label>
-                {store.logo_url && (
+                <label className="block text-sm font-medium mb-3">Logo de tienda</label>
+
+                {store.logo_url ? (
                   <div className="mb-4">
                     <img
                       src={store.logo_url}
                       alt="Logo"
-                      className="w-32 h-32 object-cover rounded-lg border border-slate-200"
+                      className="w-28 h-28 object-cover rounded-xl border border-slate-200"
                     />
                   </div>
+                ) : (
+                  <div className="mb-4 w-28 h-28 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+                    <Store className="w-8 h-8 text-slate-400" />
+                  </div>
                 )}
+
                 <ImageUpload
                   onUpload={async (file, mimeType) => {
                     const base64 = Buffer.from(file).toString("base64");
@@ -159,18 +182,23 @@ export default function VendorStoreSettings() {
                 />
               </div>
 
-              {/* Banner */}
               <div>
-                <label className="block text-sm font-medium mb-3">Banner de Tienda</label>
-                {store.banner_url && (
+                <label className="block text-sm font-medium mb-3">Banner de tienda</label>
+
+                {store.banner_url ? (
                   <div className="mb-4">
                     <img
                       src={store.banner_url}
                       alt="Banner"
-                      className="w-full h-40 object-cover rounded-lg border border-slate-200"
+                      className="w-full h-44 md:h-52 object-cover rounded-xl border border-slate-200"
                     />
                   </div>
+                ) : (
+                  <div className="mb-4 w-full h-44 md:h-52 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+                    <LayoutPanelTop className="w-8 h-8 text-slate-400" />
+                  </div>
                 )}
+
                 <ImageUpload
                   onUpload={async (file, mimeType) => {
                     const base64 = Buffer.from(file).toString("base64");
@@ -185,13 +213,12 @@ export default function VendorStoreSettings() {
             </div>
           </Card>
 
-          {/* Store Information */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-6">Información de Tienda</h2>
+            <h2 className="text-xl font-semibold mb-6">Información general</h2>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSaveAll} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre de Tienda</label>
+                <label className="block text-sm font-medium mb-1">Nombre de tienda</label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -205,7 +232,7 @@ export default function VendorStoreSettings() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Describe tu tienda..."
-                  rows={4}
+                  rows={5}
                 />
               </div>
 
@@ -217,114 +244,153 @@ export default function VendorStoreSettings() {
                 <Input
                   value={formData.whatsapp}
                   onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                  placeholder="+1234567890"
+                  placeholder="+51999999999"
                 />
               </div>
 
-              <Button type="submit" disabled={updateStore.isPending || isLoading}>
-                {updateStore.isPending || isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar Cambios"
-                )}
-              </Button>
-            </form>
-          </Card>
-
-          {/* Location and Schedule */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              Ubicación y Horario
-            </h2>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Ubicación</label>
+                <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Ubicación
+                </label>
                 <Textarea
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="Dirección completa o descripción de ubicación"
+                  placeholder="Dirección completa o referencia"
                   rows={3}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Horario de Atención</label>
+                <label className="block text-sm font-medium mb-1">Horario de atención</label>
                 <Textarea
                   value={formData.schedule}
                   onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                  placeholder="Lunes a Viernes: 9:00 - 18:00\nSábado: 10:00 - 16:00\nDomingo: Cerrado"
+                  placeholder={"Lunes a Viernes: 9:00 - 18:00\nSábado: 10:00 - 16:00\nDomingo: Cerrado"}
                   rows={4}
                 />
               </div>
 
-              <Button type="submit" disabled={updateStore.isPending || isLoading}>
-                {updateStore.isPending || isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar Información"
-                )}
-              </Button>
+              <div className="flex gap-3 flex-wrap">
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar cambios"
+                  )}
+                </Button>
+              </div>
             </form>
           </Card>
         </div>
 
-        {/* Sidebar - Gallery */}
         <div>
-          <Card className="p-6 sticky top-8">
-            <h2 className="text-xl font-semibold mb-4">Galería de Tienda</h2>
-            <p className="text-sm text-slate-600 mb-4">Máximo 5 imágenes</p>
+          <div className="sticky top-8 space-y-6">
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5" />
+                Galería de tienda
+              </h2>
 
-            {store.gallery && store.gallery.length > 0 && (
-              <div className="space-y-3 mb-6">
-                {store.gallery.map((image) => (
-                  <div key={image.id} className="relative group">
-                    <img
-                      src={image.url}
-                      alt="Gallery"
-                      className="w-full h-24 object-cover rounded-lg"
-                    />
-                    <button
-                      onClick={() => {
-                        if (confirm("¿Eliminar esta imagen?")) {
-                          deleteGalleryImage.mutate({ imageId: image.id });
-                        }
-                      }}
-                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center text-white text-sm font-medium"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                ))}
+              <p className="text-sm text-slate-600 mb-4">Máximo 5 imágenes</p>
+
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <CardContent className="p-4 border rounded-xl">
+                  <p className="text-xs text-slate-500 mb-1">Actual</p>
+                  <p className="text-xl font-bold">{galleryCount}/5</p>
+                </CardContent>
+
+                <CardContent className="p-4 border rounded-xl">
+                  <p className="text-xs text-slate-500 mb-1">Disponible</p>
+                  <p className="text-xl font-bold">{Math.max(0, 5 - galleryCount)}</p>
+                </CardContent>
               </div>
-            )}
 
-            {store.gallery && store.gallery.length < 5 && (
-              <ImageUpload
-                onUpload={async (file, mimeType) => {
-                  const base64 = Buffer.from(file).toString("base64");
-                  await uploadGallery.mutateAsync({
-                    file: base64,
-                    mimeType,
-                  });
-                }}
-                isLoading={uploadGallery.isPending}
-              />
-            )}
+              {store.gallery && store.gallery.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  {store.gallery.map((image) => (
+                    <div key={image.id} className="relative group">
+                      <img
+                        src={image.url}
+                        alt="Galería"
+                        className="w-full h-24 object-cover rounded-lg border border-slate-200"
+                      />
+                      <button
+                        onClick={() => {
+                          if (confirm("¿Eliminar esta imagen?")) {
+                            deleteGalleryImage.mutate({ imageId: image.id });
+                          }
+                        }}
+                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center text-white text-sm font-medium"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            {store.gallery && store.gallery.length >= 5 && (
-              <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-600">
-                Galería completa (5/5 imágenes)
+              {galleryCount < 5 ? (
+                <ImageUpload
+                  onUpload={async (file, mimeType) => {
+                    const base64 = Buffer.from(file).toString("base64");
+                    await uploadGallery.mutateAsync({
+                      file: base64,
+                      mimeType,
+                    });
+                  }}
+                  isLoading={uploadGallery.isPending}
+                />
+              ) : (
+                <div className="p-4 bg-slate-100 rounded-lg text-center text-sm text-slate-600">
+                  Galería completa (5/5 imágenes)
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Estado de tienda</h2>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Estado</span>
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      store.status === "active"
+                        ? "bg-green-100 text-green-800"
+                        : store.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {store.status}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Visitas</span>
+                  <span className="font-semibold">{store.total_visits}</span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Destacada</span>
+                  <span className="font-semibold">{store.is_featured ? "Sí" : "No"}</span>
+                </div>
               </div>
+            </Card>
+
+            {isUploadingSomething && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Subiendo archivos...
+                </div>
+              </Card>
             )}
-          </Card>
+          </div>
         </div>
       </div>
     </div>
