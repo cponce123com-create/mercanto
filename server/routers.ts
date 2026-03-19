@@ -84,6 +84,19 @@ export const appRouter = router({
   upload: uploadRouter,
 
   // ============================================================================
+  // ADMIN ROUTES
+  // ============================================================================
+  admin: router({
+    getAllStores: adminProcedure.query(async () => {
+      return await db.listAllStores();
+    }),
+
+    getAllProducts: adminProcedure.query(async () => {
+      return await db.listAllProducts();
+    }),
+  }),
+
+  // ============================================================================
   // AUTH ROUTES
   // ============================================================================
   auth: router({

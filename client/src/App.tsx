@@ -16,6 +16,7 @@ import LoginPage from "./pages/Login";
 import RegisterPage from "./pages/Register";
 import ProfilePage from "./pages/Profile";
 import NotFound from "@/pages/NotFound";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function Router() {
   return (
@@ -49,6 +50,9 @@ function Router() {
 
       <Route path="/vendor/store" component={VendorStoreSettings} />
       <Route path="/panel-vendedor/tienda" component={VendorStoreSettings} />
+
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/panel-admin" component={AdminDashboard} />
 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

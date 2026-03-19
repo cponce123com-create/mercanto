@@ -29,6 +29,7 @@ export default function VendorProducts() {
     price: "",
     category_id: "",
   });
+  const [tempProductImages, setTempProductImages] = useState<File[]>([]);
 
   const utils = trpc.useUtils();
 
@@ -113,6 +114,7 @@ export default function VendorProducts() {
     setIsCreating(false);
     setEditingId(null);
     setFormData({ name: "", description: "", price: "", category_id: "" });
+    setTempProductImages([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,12 +133,29 @@ export default function VendorProducts() {
         price: formData.price,
       });
     } else {
-      createProduct.mutate({
-        name: formData.name,
-        description: formData.description,
-        price: formData.price,
-        categoryId: parseInt(formData.category_id, 10),
-      });
+      createProduct.mutate(
+        {
+          name: formData.name,
+          description: formData.description,
+          price: formData.price,
+          categoryId: parseInt(formData.category_id, 10),
+        },
+        {
+          onSuccess: async (data: any) => {
+            // Upload images after product creation
+            if (tempProductImages.length > 0) {
+              for (const file of tempProductImages) {
+                const buffer = await file.arrayBuffer();
+                await uploadImage.mutateAsync({
+                  productId: data.productId || 0,
+                  file: Buffer.from(buffer).toString("base64"),
+                  mimeType: file.type,
+                });
+              }
+            }
+          },
+        }
+      );
     }
   };
 
@@ -242,9 +261,54 @@ export default function VendorProducts() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium mb-2">Imágenes del producto</label>
+              <div className="mb-4">
+                {tempProductImages.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+                    {tempProductImages.map((file, idx) => (
+                      <div key={idx} className="relative">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Preview ${idx}`}
+                          className="w-full h-24 object-cover rounded-lg border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTempProductImages(tempProductImages.filter((_, i) => i !== idx))
+                          }
+                          className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (tempProductImages.length + files.length > 5) {
+                      toast.error("Máximo 5 imágenes por producto");
+                      return;
+                    }
+                    setTempProductImages([...tempProductImages, ...files]);
+                  }}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                <p className="text-xs text-slate-500 mt-2">
+                  {tempProductImages.length}/5 imágenes seleccionadas
+                </p>
+              </div>
+            </div>
+
             <div className="flex gap-2 flex-wrap">
-              <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending}>
-                {createProduct.isPending || updateProduct.isPending ? (
+              <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending || uploadImage.isPending}>
+                {createProduct.isPending || updateProduct.isPending || uploadImage.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Guardando...

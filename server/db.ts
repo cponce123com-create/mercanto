@@ -840,3 +840,28 @@ export async function deleteTacoraImage(id: number) {
 
   return await db.delete(tacora_images).where(eq(tacora_images.id, id));
 }
+
+
+// ============================================================================
+// ADMIN OPERATIONS
+// ============================================================================
+
+export async function listAllStores() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(stores)
+    .orderBy(desc(stores.created_at));
+}
+
+export async function listAllProducts() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(products)
+    .orderBy(desc(products.created_at));
+}

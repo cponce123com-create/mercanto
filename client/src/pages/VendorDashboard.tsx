@@ -20,10 +20,18 @@ export default function VendorDashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
 
-  const { data: store, isLoading: storeLoading } = trpc.stores.getMyStore.useQuery();
-  const { data: products = [], isLoading: productsLoading } = trpc.products.getMyProducts.useQuery();
-  const { data: orders = [], isLoading: ordersLoading } = trpc.orders.getStoreOrders.useQuery();
-  const { data: tacoraPosts = [], isLoading: tacoraLoading } = trpc.tacora.getMyPosts.useQuery();
+  const { data: store, isLoading: storeLoading, error: storeError } = trpc.stores.getMyStore.useQuery(undefined, {
+    retry: false,
+  });
+  const { data: products = [], isLoading: productsLoading, error: productsError } = trpc.products.getMyProducts.useQuery(undefined, {
+    retry: false,
+  });
+  const { data: orders = [], isLoading: ordersLoading, error: ordersError } = trpc.orders.getStoreOrders.useQuery(undefined, {
+    retry: false,
+  });
+  const { data: tacoraPosts = [], isLoading: tacoraLoading, error: tacoraError } = trpc.tacora.getMyPosts.useQuery(undefined, {
+    retry: false,
+  });
 
   if (!user) {
     return (
@@ -42,6 +50,7 @@ export default function VendorDashboard() {
   }
 
   const isLoading = storeLoading || productsLoading || ordersLoading || tacoraLoading;
+  const hasError = storeError || productsError || ordersError || tacoraError;
 
   const activeProducts = products.filter((p) => p.status === "active");
   const inactiveProducts = products.filter((p) => p.status !== "active");
@@ -72,7 +81,21 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {isLoading ? (
+      {hasError ? (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
+          <p className="text-red-800 font-semibold mb-2">Error al cargar el panel</p>
+          <p className="text-red-700 text-sm mb-4">
+            {storeError?.message || productsError?.message || ordersError?.message || tacoraError?.message || "Ocurrió un error al cargar los datos"}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => window.location.reload()}
+            className="text-red-700 border-red-300 hover:bg-red-50"
+          >
+            Reintentar
+          </Button>
+        </div>
+      ) : isLoading ? (
         <div className="flex justify-center items-center py-12">
           <Loader2 className="w-8 h-8 animate-spin" />
         </div>

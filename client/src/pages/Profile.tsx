@@ -117,7 +117,21 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="w-full mt-6 space-y-3">
-                  {isVendor ? (
+                  {user.role === "admin" ? (
+                    <>
+                      <Button className="w-full" onClick={() => setLocation("/admin")}>
+                        Panel de Administracion
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setLocation("/vendor")}
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Mi Panel de Vendedor
+                      </Button>
+                    </>
+                  ) : isVendor ? (
                     <>
                       <Button className="w-full" onClick={() => setLocation("/vendor")}>
                         Ir a mi panel

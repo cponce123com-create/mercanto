@@ -53,7 +53,7 @@ export default function LoginPage() {
       toast.success("Sesión iniciada correctamente");
 
       if (role === "admin") {
-        setLocation("/profile");
+        setLocation("/admin");
       } else if (role === "vendor") {
         setLocation("/vendor");
       } else {
@@ -94,7 +94,7 @@ export default function LoginPage() {
 
               <div className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                Administradores y compradores entran a su perfil. Los vendedores a su panel.
+                Administradores al panel de admin. Vendedores a su panel. Compradores a su perfil.
               </div>
             </div>
 
