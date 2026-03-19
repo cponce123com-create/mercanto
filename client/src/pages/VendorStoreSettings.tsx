@@ -29,7 +29,9 @@ export default function VendorStoreSettings() {
 
   const utils = trpc.useUtils();
 
-  const { data: store, isLoading: storeLoading } = trpc.stores.getMyStore.useQuery();
+  const { data: store, isLoading: storeLoading, error: storeError } = trpc.stores.getMyStore.useQuery(undefined, {
+    retry: false,
+  });
 
   const updateStore = trpc.stores.updateStore.useMutation({
     onSuccess: async () => {
@@ -111,10 +113,33 @@ export default function VendorStoreSettings() {
     );
   }
 
-  if (storeLoading || !store) {
+  if (storeError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+        <p className="text-red-600 font-semibold">Error al cargar la tienda</p>
+        <p className="text-slate-600 text-sm">{storeError.message}</p>
+        <Button onClick={() => window.location.href = "/profile"}>
+          Volver al perfil
+        </Button>
+      </div>
+    );
+  }
+
+  if (storeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+        <p className="text-slate-600">No se encontró la tienda asociada a tu cuenta.</p>
+        <Button onClick={() => window.location.href = "/profile"}>
+          Ir a crear tienda
+        </Button>
       </div>
     );
   }

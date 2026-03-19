@@ -57,9 +57,10 @@ export default function ProfilePage() {
   const becomeVendor = trpc.user.becomeVendor.useMutation({
     onSuccess: async () => {
       toast.success("Ahora ya eres vendedor");
-      await utils.auth.me.invalidate();
-      await refresh();
-      setLocation("/vendor");
+      // Invalidate all queries to ensure fresh data
+      await utils.invalidate();
+      // Force a hard reload to ensure session and role are updated correctly
+      window.location.href = "/vendor";
     },
     onError: (error) => {
       toast.error(error.message);
