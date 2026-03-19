@@ -7,6 +7,17 @@ import { registerLocalAuthRoutes } from "./localAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { authRouter } from "../routers/auth.router";
+
+export const appRouter = t.router({
+  auth: authRouter,   // ← agrega esta línea
+  // ... lo que ya tenías
+});
+```
+
+**5. Agrega la variable de entorno** en tu archivo `.env`:
+```
+JWT_SECRET=Hadrones456
 
 async function startServer() {
   const app = express();
