@@ -79,9 +79,6 @@ export function useAuth(options?: UseAuthOptions) {
   };
 }
 
-  return { user, isLoading, isVendor };
-}
-
 export function useRequireAdmin(redirectTo = "/") {
   const { user, isLoading, isAdmin } = useAuth();
   const [, navigate] = useLocation();
