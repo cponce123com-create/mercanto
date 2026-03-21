@@ -13,7 +13,7 @@ import {
   Store,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export default function ProductDetail() {

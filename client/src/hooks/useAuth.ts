@@ -1,128 +1,83 @@
-// client/src/hooks/useAuth.ts
-// Hook de autenticación para el cliente React
-
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { trpc } from "../lib/trpc"; // ajusta el path según tu proyecto
-
-// ─── Tipos ───────────────────────────────────────────────────────────────────
-
-export type AuthUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: "user" | "vendor" | "admin";
-  avatarUrl?: string | null;
-};
-
-type AuthState = {
-  user: AuthUser | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  isVendor: boolean;
-  isAdmin: boolean;
-};
-
-// ─── Context ─────────────────────────────────────────────────────────────────
-
-import { createContext as _createContext } from "react";
-export const AuthContext = _createContext<AuthState>({
-  user: null,
-  isLoading: true,
-  isAuthenticated: false,
-  isVendor: false,
-  isAdmin: false,
-});
-
-// ─── Provider ────────────────────────────────────────────────────────────────
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading } = trpc.auth.me.useQuery(undefined, {
-    retry: false,
-    staleTime: 1000 * 60 * 5, // 5 minutos
-  });
-
-  const value: AuthState = {
-    user: user ?? null,
-    isLoading,
-    isAuthenticated: !!user,
-    isVendor: user?.role === "vendor" || user?.role === "admin",
-    isAdmin: user?.role === "admin",
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-// ─── Hook principal ───────────────────────────────────────────────────────────
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-// ─── Hook de login ────────────────────────────────────────────────────────────
-
-export function useLogin() {
-  const utils = trpc.useUtils();
-  const login = trpc.auth.login.useMutation({
-    onSuccess: () => {
-      utils.auth.me.invalidate();
-    },
-  });
-  return login;
-}
-
-// ─── Hook de register ────────────────────────────────────────────────────────
-
-export function useRegister() {
-  const utils = trpc.useUtils();
-  const register = trpc.auth.register.useMutation({
-    onSuccess: () => {
-      utils.auth.me.invalidate();
-    },
-  });
-  return register;
-}
-
-// ─── Hook de logout ───────────────────────────────────────────────────────────
-
-export function useLogout() {
-  const utils = trpc.useUtils();
-  const logout = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      utils.auth.me.invalidate();
-      // Limpia toda la caché de tRPC al cerrar sesión
-      utils.invalidate();
-    },
-  });
-  return logout;
-}
-
-// ─── Guard: redirige si no está autenticado ────────────────────────────────────
-
-import { useEffect } from "react";
+import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
+import { useCallback, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 
-export function useRequireAuth(redirectTo = "/login") {
-  const { user, isLoading } = useAuth();
-  const [, navigate] = useLocation();
+type UseAuthOptions = {
+  redirectOnUnauthenticated?: boolean;
+  redirectPath?: string;
+};
+
+export function useAuth(options?: UseAuthOptions) {
+  const { redirectOnUnauthenticated = false, redirectPath = "/login" } = options ?? {};
+  const utils = trpc.useUtils();
+  const [, setLocation] = useLocation();
+
+  const meQuery = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.setData(undefined, null);
+    },
+  });
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutMutation.mutateAsync();
+    } catch (error: unknown) {
+      if (error instanceof TRPCClientError && error.data?.code === "UNAUTHORIZED") {
+        return;
+      }
+      throw error;
+    } finally {
+      utils.auth.me.setData(undefined, null);
+      localStorage.removeItem("mercanto-user-info");
+      await utils.auth.me.invalidate();
+      setLocation("/login");
+    }
+  }, [logoutMutation, utils, setLocation]);
+
+  const state = useMemo(() => {
+    const user = meQuery.data ?? null;
+    if (typeof window !== "undefined") {
+      if (user) {
+        localStorage.setItem("mercanto-user-info", JSON.stringify(user));
+      } else {
+        localStorage.removeItem("mercanto-user-info");
+      }
+    }
+
+    return {
+      user,
+      loading: meQuery.isLoading || logoutMutation.isPending,
+      error: meQuery.error ?? logoutMutation.error ?? null,
+      isAuthenticated: Boolean(user),
+      isVendor: user?.role === "vendor" || user?.role === "admin",
+      isAdmin: user?.role === "admin",
+    };
+  }, [
+    meQuery.data,
+    meQuery.error,
+    meQuery.isLoading,
+    logoutMutation.error,
+    logoutMutation.isPending,
+  ]);
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate(redirectTo);
+    if (redirectOnUnauthenticated && !state.loading && !state.isAuthenticated) {
+      setLocation(redirectPath);
     }
-  }, [user, isLoading, navigate, redirectTo]);
+  }, [redirectOnUnauthenticated, state.loading, state.isAuthenticated, redirectPath, setLocation]);
 
-  return { user, isLoading };
+  return {
+    ...state,
+    refresh: () => meQuery.refetch(),
+    logout,
+  };
 }
-
-export function useRequireVendor(redirectTo = "/") {
-  const { user, isLoading, isVendor } = useAuth();
-  const [, navigate] = useLocation();
-
-  useEffect(() => {
-    if (!isLoading && !isVendor) {
-      navigate(redirectTo);
-    }
-  }, [user, isLoading, isVendor, navigate, redirectTo]);
 
   return { user, isLoading, isVendor };
 }

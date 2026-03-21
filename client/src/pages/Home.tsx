@@ -1,4 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,60 +42,14 @@ export default function Home() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <Loader2 className="animate-spin w-8 h-8" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <span className="text-2xl font-bold text-blue-600 cursor-pointer hover:text-blue-700">
-              Mercanto
-            </span>
-          </Link>
-
-          <nav className="hidden md:flex gap-6 items-center">
-            <Link href="/categories">
-              <span className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-900">
-                Categorías
-              </span>
-            </Link>
-            <Link href="/stores">
-              <span className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-900">
-                Tiendas
-              </span>
-            </Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <>
-                {(user?.role === "vendor" || user?.role === "admin") && (
-                  <Link href="/vendor">
-                    <Button variant="outline" size="sm">
-                      Mi Panel
-                    </Button>
-                  </Link>
-                )}
-                <Link href="/profile">
-  <Button variant="outline" size="sm">
-    {user?.name || "Perfil"}
-  </Button>
-</Link>
-              </>
-            ) : (
-              <a href={getLoginUrl()}>
-                <Button size="sm">Ingresar</Button>
-              </a>
-            )}
-          </div>
-        </div>
-      </header>
-
+    <div className="bg-gradient-to-b from-slate-50 to-white">
       <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16 md:py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center">
@@ -291,52 +245,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      <footer className="bg-slate-900 text-slate-300 py-8 md:py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-            <div>
-              <h3 className="text-white font-bold mb-4">Mercanto</h3>
-              <p className="text-sm">Tu marketplace local para comprar y vender</p>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Navegación</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/categories">
-                    <span className="hover:text-white cursor-pointer">Categorías</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/stores">
-                    <span className="hover:text-white cursor-pointer">Tiendas</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Ayuda</h4>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <span className="hover:text-white cursor-pointer">Contacto</span>
-                </li>
-                <li>
-                  <span className="hover:text-white cursor-pointer">Términos</span>
-                </li>
-                <li>
-                  <span className="hover:text-white cursor-pointer">Privacidad</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-700 pt-8 text-center text-sm">
-            <p>&copy; 2026 Mercanto. Todos los derechos reservados.</p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

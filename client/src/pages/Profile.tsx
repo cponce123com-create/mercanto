@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";

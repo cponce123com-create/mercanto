@@ -57,64 +57,31 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = {};
-    const updateSet: Record<string, any> = {};
+    const values: InsertUser = {
+      ...user,
+      last_signed_in: user.last_signed_in ?? new Date(),
+    };
 
     if (hasOpenId) {
       values.openId = user.openId!.trim();
+      if (user.openId === ENV.ownerOpenId) {
+        values.role = "admin";
+      }
     }
 
-    const textFields = [
-      "name",
-      "email",
-      "loginMethod",
-      "phone",
-      "avatar_url",
-      "password_hash",
-    ] as const;
-
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.last_signed_in !== undefined) {
-      values.last_signed_in = user.last_signed_in;
-      updateSet.last_signed_in = user.last_signed_in;
-    } else {
-      values.last_signed_in = new Date();
-      updateSet.last_signed_in = new Date();
+    if (hasEmail) {
+      values.email = user.email!.trim().toLowerCase();
     }
 
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (hasOpenId && user.openId === ENV.ownerOpenId) {
-      values.role = "admin";
-      updateSet.role = "admin";
-    }
+    // Filter out undefined values for updateSet
+    const updateSet = Object.fromEntries(
+      Object.entries(values).filter(([_, v]) => v !== undefined)
+    );
 
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.last_signed_in = new Date();
-    }
-
-    if (hasOpenId) {
-      await db.insert(users).values(values).onConflictDoUpdate({
-        target: users.openId,
-        set: updateSet,
-      });
-      return;
-    }
+    const target = hasOpenId ? users.openId : users.email;
 
     await db.insert(users).values(values).onConflictDoUpdate({
-      target: users.email,
+      target,
       set: updateSet,
     });
   } catch (error) {
@@ -207,6 +174,26 @@ export async function getStoreByUserId(user_id: number) {
 
   const result = await db.select().from(stores).where(eq(stores.user_id, user_id)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function isSlugTaken(table: any, slug: string) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.select().from(table).where(eq(table.slug, slug)).limit(1);
+  return result.length > 0;
+}
+
+export async function getExistingSlugsStartingWith(table: any, baseSlug: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const results = await db
+    .select({ slug: table.slug })
+    .from(table)
+    .where(sql`${table.slug} LIKE ${`${baseSlug}%`}`);
+
+  return results.map((r) => r.slug as string);
 }
 
 export async function getStoreBySlug(slug: string) {
@@ -361,7 +348,8 @@ export async function searchProducts(query: string, limit = 20, offset = 0) {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return [];
 
-  const rows = await db
+  // Get products matching the search
+  const productRows = await db
     .select({
       id: products.id,
       store_id: products.store_id,
@@ -379,15 +367,6 @@ export async function searchProducts(query: string, limit = 20, offset = 0) {
       created_at: products.created_at,
       updated_at: products.updated_at,
       store_name: stores.name,
-      image_url: sql<string | null>`
-        (
-          select pi.url
-          from ${product_images} pi
-          where pi.product_id = ${products.id}
-          order by pi.sort_order asc, pi.id asc
-          limit 1
-        )
-      `,
     })
     .from(products)
     .leftJoin(stores, eq(stores.id, products.store_id))
@@ -405,7 +384,34 @@ export async function searchProducts(query: string, limit = 20, offset = 0) {
     .limit(limit)
     .offset(offset);
 
-  return rows;
+  if (productRows.length === 0) return [];
+
+  const productIds = productRows.map((p) => p.id);
+
+  // Fetch only the first image for each product
+  const firstImages = await db
+    .select({
+      product_id: product_images.product_id,
+      url: product_images.url,
+    })
+    .from(product_images)
+    .where(
+      and(
+        inArray(product_images.product_id, productIds),
+        sql`id IN (
+          SELECT MIN(id)
+          FROM ${product_images}
+          GROUP BY product_id
+        )`
+      )
+    );
+
+  const imageMap = new Map(firstImages.map((img) => [img.product_id, img.url]));
+
+  return productRows.map((product) => ({
+    ...product,
+    image_url: imageMap.get(product.id) ?? null,
+  }));
 }
 
 export async function getProductsByCategory(category_id: number, limit = 20, offset = 0) {
@@ -649,35 +655,15 @@ export async function removeFavorite(user_id: number, product_id?: number, tacor
 // ORDER OPERATIONS
 // ============================================================================
 
-export async function createOrder(data: {
-  buyer_id: number;
-  store_id: number;
-  total_amount: string;
-  delivery_type: string;
-  delivery_address?: string;
-  notes?: string;
-}) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  const inserted = await db
-    .insert(orders)
-    .values({
-      buyer_id: data.buyer_id,
-      store_id: data.store_id,
-      total_amount: data.total_amount,
-      delivery_type: data.delivery_type,
-      delivery_address: data.delivery_address,
-      notes: data.notes,
-      status: "pending",
-    })
-    .returning();
-
-  return inserted[0];
-}
-
-export async function createOrderItems(
-  order_id: number,
+export async function createOrderWithItems(
+  orderData: {
+    buyer_id: number;
+    store_id: number;
+    total_amount: string;
+    delivery_type: string;
+    delivery_address?: string;
+    notes?: string;
+  },
   items: Array<{
     product_id: number;
     quantity: number;
@@ -687,20 +673,37 @@ export async function createOrderItems(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  if (items.length === 0) return [];
+  return await db.transaction(async (tx) => {
+    const [order] = await tx
+      .insert(orders)
+      .values({
+        buyer_id: orderData.buyer_id,
+        store_id: orderData.store_id,
+        total_amount: orderData.total_amount,
+        delivery_type: orderData.delivery_type,
+        delivery_address: orderData.delivery_address,
+        notes: orderData.notes,
+        status: "pending",
+      })
+      .returning();
 
-  const values = items.map((item) => {
-    const subtotal = (Number(item.unit_price) * item.quantity).toFixed(2);
-    return {
-      order_id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      subtotal,
-    };
+    const orderItemsValues = items.map((item) => {
+      const subtotal = (Number(item.unit_price) * item.quantity).toFixed(2);
+      return {
+        order_id: order.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal,
+      };
+    });
+
+    if (orderItemsValues.length > 0) {
+      await tx.insert(order_items).values(orderItemsValues);
+    }
+
+    return order;
   });
-
-  return await db.insert(order_items).values(values).returning();
 }
 
 export async function getOrderById(id: number) {

@@ -29,6 +29,8 @@ const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   return next({ ctx });
 });
 
+import { stores, products, tacora_posts } from "../drizzle/schema";
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -40,40 +42,20 @@ function slugify(value: string) {
     .replace(/-{2,}/g, "-");
 }
 
-async function getUniqueStoreSlug(baseValue: string) {
-  const baseSlug = slugify(baseValue) || "tienda";
-  let slug = baseSlug;
-  let counter = 2;
+export async function getUniqueSlug(table: any, baseValue: string, defaultSlug: string) {
+  const baseSlug = slugify(baseValue) || defaultSlug;
+  const existingSlugs = await db.getExistingSlugsStartingWith(table, baseSlug);
 
-  while (await db.getStoreBySlug(slug)) {
-    slug = `${baseSlug}-${counter}`;
-    counter++;
+  if (existingSlugs.length === 0 || !existingSlugs.includes(baseSlug)) {
+    return baseSlug;
   }
 
-  return slug;
-}
-
-async function getUniqueProductSlug(baseValue: string) {
-  const baseSlug = slugify(baseValue) || "producto";
-  let slug = baseSlug;
   let counter = 2;
+  let slug = `${baseSlug}-${counter}`;
 
-  while (await db.getProductBySlug(slug)) {
-    slug = `${baseSlug}-${counter}`;
+  while (existingSlugs.includes(slug)) {
     counter++;
-  }
-
-  return slug;
-}
-
-async function getUniqueTacoraSlug(baseValue: string) {
-  const baseSlug = slugify(baseValue) || "publicacion";
-  let slug = baseSlug;
-  let counter = 2;
-
-  while (await db.getTacoraPostBySlug(slug)) {
     slug = `${baseSlug}-${counter}`;
-    counter++;
   }
 
   return slug;
@@ -163,7 +145,7 @@ becomeVendor: protectedProcedure
       });
     }
 
-    const slug = await getUniqueStoreSlug(input.storeName);
+    const slug = await getUniqueSlug(stores, input.storeName, "tienda");
 
     await db.createStore({
       user_id: ctx.user.id,
@@ -367,7 +349,7 @@ becomeVendor: protectedProcedure
           });
         }
 
-        const slug = await getUniqueProductSlug(input.name);
+        const slug = await getUniqueSlug(products, input.name, "producto");
 
         await db.createProduct({
           store_id: store.id,
@@ -513,7 +495,7 @@ create: vendorProcedure
       });
     }
 
-    const slug = await getUniqueTacoraSlug(input.title);
+    const slug = await getUniqueSlug(tacora_posts, input.title, "publicacion");
 
     await db.createTacoraPost({
       user_id: ctx.user.id,
@@ -666,17 +648,15 @@ create: vendorProcedure
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const order = await db.createOrder({
-          buyer_id: ctx.user.id,
-          store_id: input.storeId,
-          total_amount: input.totalAmount,
-          delivery_type: input.deliveryType,
-          delivery_address: input.deliveryAddress,
-          notes: input.notes,
-        });
-
-        await db.createOrderItems(
-          order.id,
+        const order = await db.createOrderWithItems(
+          {
+            buyer_id: ctx.user.id,
+            store_id: input.storeId,
+            total_amount: input.totalAmount,
+            delivery_type: input.deliveryType,
+            delivery_address: input.deliveryAddress,
+            notes: input.notes,
+          },
           input.items.map((item) => ({
             product_id: item.productId,
             quantity: item.quantity,

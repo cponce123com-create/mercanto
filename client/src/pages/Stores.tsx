@@ -40,7 +40,7 @@ export default function Stores() {
   }, [visualStores, normalizedSearch, filterFeatured]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="bg-slate-50">
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-12">
         <div className="container">
           <h1 className="text-4xl font-bold mb-4">Tiendas</h1>

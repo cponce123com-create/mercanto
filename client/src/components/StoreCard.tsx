@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Star, MapPin, MessageCircle, Store, Eye, Sparkles } from "lucide-react";
-import { useLocation } from "wouter";
+import { Link } from "wouter";
 
 interface StoreCardProps {
   id: number;
@@ -29,12 +29,7 @@ export function StoreCard({
   is_featured,
   demoMode = false,
 }: StoreCardProps) {
-  const [, setLocation] = useLocation();
-
-  const handleOpenStore = () => {
-    if (demoMode) return;
-    setLocation(`/store/${slug}`);
-  };
+  const CardWrapper = demoMode ? "div" : Link;
 
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -48,17 +43,17 @@ export function StoreCard({
   };
 
   return (
-    <div
-      onClick={handleOpenStore}
-      className={`${demoMode ? "cursor-default" : "cursor-pointer"} h-full`}
+    <CardWrapper
+      href={demoMode ? undefined : `/store/${slug}`}
+      className={`${demoMode ? "cursor-default" : "cursor-pointer"} h-full block group`}
     >
       <Card className="overflow-hidden hover:shadow-lg transition-all duration-200 h-full flex flex-col border-slate-200">
         <div className="relative h-40 bg-slate-100 overflow-hidden">
           {banner_url ? (
             <img
               src={banner_url}
-              alt={name}
-              className="w-full h-full object-cover"
+              alt={`Banner de ${name}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
             />
           ) : (
