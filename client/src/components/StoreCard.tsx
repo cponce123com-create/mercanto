@@ -128,10 +128,6 @@ export function StoreCard({
               size="sm"
               variant="outline"
               className="flex-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenStore();
-              }}
               disabled={demoMode}
             >
               {demoMode ? "Próximamente" : "Ver tienda"}
@@ -150,6 +146,6 @@ export function StoreCard({
           </div>
         </CardContent>
       </Card>
-    </div>
+    </CardWrapper>
   );
 }
